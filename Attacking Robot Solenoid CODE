@@ -9,6 +9,10 @@ IBusBM ibus;
 #define PWM2_PIN 10
 #define DIR2_PIN 7
 
+// LED pins
+#define LED1_PIN 52
+#define LED2_PIN 53
+
 void setup() {
   // Start Serial1 for i-BUS communication
   Serial1.begin(115200);
@@ -19,6 +23,12 @@ void setup() {
   pinMode(DIR1_PIN, OUTPUT);
   pinMode(PWM2_PIN, OUTPUT);
   pinMode(DIR2_PIN, OUTPUT);
+
+  // LED pins
+  pinMode(LED1_PIN, OUTPUT);
+  pinMode(LED2_PIN, OUTPUT);
+
+  Serial.begin(115200);    // Serial Monitor
 }
 
 void loop() {
@@ -29,6 +39,14 @@ void loop() {
   int throttle = ibus.readChannel(1); // Channel 2 (Throttle)
   int steering = ibus.readChannel(0); // Channel 1 (Steering)
   int speedControl = ibus.readChannel(2); // Channel 3 (Speed Control)
+  int led1Control = ibus.readChannel(4); // Channel 5 (LED1 Control)
+  int led2Control = ibus.readChannel(7); // Channel 8 (LED2 Control)
+
+  // Failsafe check: Stop motors if channel values are out of range
+  if (throttle < 1000 || throttle > 2000 || steering < 1000 || steering > 2000 || speedControl < 1000 || speedControl > 2000) {
+    controlMotors(0, 0); // Stop the motors
+    return;
+  }
 
   // Map i-BUS values (1000-2000) to motor control ranges
   int motorSpeed = map(throttle, 1000, 2000, -255, 255);
@@ -39,8 +57,16 @@ void loop() {
   motorSpeed *= speedMultiplier;
   steerValue *= speedMultiplier;
 
+  // Dead zone for small movements
+  if (abs(motorSpeed) < 15) motorSpeed = 0;
+  if (abs(steerValue) < 15) steerValue = 0;
+
   // Control motors based on throttle and steering
   controlMotors(motorSpeed, steerValue);
+
+  // Control LEDs
+  digitalWrite(LED1_PIN, led1Control > 1500 ? HIGH : LOW); // Turn LED1 on if Channel 5 > 1500
+  digitalWrite(LED2_PIN, led2Control > 1500 ? HIGH : LOW); // Turn LED2 on if Channel 8 > 1500
 }
 
 void controlMotors(int speed, int steer) {
